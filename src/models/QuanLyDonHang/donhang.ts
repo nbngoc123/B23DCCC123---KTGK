@@ -1,4 +1,5 @@
 import { Customer, Order, OrderItem, OrderStatus, Product } from '@/services/QuanLyDonHang/typing';
+import { message } from 'antd';
 import React, { useEffect, useState } from 'react';
 
 const MOCK_CUSTOMERS: Customer[] = [
@@ -23,6 +24,7 @@ export default () => {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
 
   // State cho Modal và Form
+  const [currentTotal, setCurrentTotal] = useState<number>(0);
   const [visible, setVisible] = useState<boolean>(false);
   const [isEdit, setIsEdit] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<Order | undefined>(undefined);
@@ -155,6 +157,64 @@ export default () => {
     }
   };
 
+  // cáccác hàm cho form 
+  // Tính tổng tiền
+  const calculateTotal = (items: { productId?: string; quantity?: number }[]) => {
+    let total = 0;
+    items?.forEach(item => {
+      const product = MOCK_PRODUCTS.find(p => p.id === item.productId);
+      if (product && item.quantity && item.quantity > 0) {
+        total += product.price * item.quantity;
+      }
+    });
+    setCurrentTotal(total);
+  };
+
+// Xử lý submit form
+const onFinish = async (values: any) => {
+  try {
+    const selectedCustomer = MOCK_CUSTOMERS.find(c => c.id === values.customerId);
+    if (!selectedCustomer) {
+      message.error('Không tìm thấy thông tin khách hàng');
+      return;
+    }
+
+    const orderItems: OrderItem[] = values.items
+      .map((item: { productId: string; quantity: number }) => {
+        const product = MOCK_PRODUCTS.find(p => p.id === item.productId);
+        if (!product || !item.quantity || item.quantity <= 0) return null;
+        return {
+          product: product,
+          quantity: item.quantity,
+        };
+      })
+      .filter((item: OrderItem | null): item is OrderItem => item !== null);
+
+    if (orderItems.length === 0) {
+      message.error('Vui lòng chọn ít nhất một sản phẩm hợp lệ');
+      return;
+    }
+
+    const finalValues: Omit<Order, 'id' | 'totalAmount'> = {
+      customer: selectedCustomer,
+      status: values.status,
+      items: orderItems,
+      orderDate: new Date(), 
+    };
+
+    const result = await handleFormSubmit(finalValues, orderItems);
+    if (result.success) {
+      message.success(result.message);
+      handleModalClose();
+    } else {
+      message.error(result.message);
+    }
+  } catch (error) {
+    message.error('Có lỗi xảy ra khi xử lý đơn hàng');
+    console.error(error);
+  }
+};
+
   return {
     orders,
     filteredOrders,
@@ -172,6 +232,9 @@ export default () => {
     handleCancelOrder,
     handleModalClose,
     handleFormSubmit,
-    getDataOrders
+    getDataOrders,
+    calculateTotal,
+    onFinish,
+    currentTotal
   };
 };
